@@ -657,3 +657,214 @@ def score_ticker(ticker, data, bench20, bench63, market_regime):
         "high_prox_%": round(high_prox * 100, 1),
         "chart": tradingview_url(ticker),
     }
+# =========================================================
+# Ranking Engine + Dashboard
+# =========================================================
+
+@st.cache_data(ttl=300, show_spinner=False)
+def build_rankings():
+    data = download_market_data()
+
+    qqq = get_df(data, "QQQ")["close"]
+    soxx = get_df(data, "SOXX")["close"]
+
+    qqq20 = pct_return(qqq, 21)
+    soxx20 = pct_return(soxx, 21)
+    qqq63 = pct_return(qqq, 64)
+    soxx63 = pct_return(soxx, 64)
+
+    bench20 = np.nanmean([qqq20, soxx20])
+    bench63 = np.nanmean([qqq63, soxx63])
+
+    market_regime = (
+        100 if qqq20 > 0 and soxx20 > 0 and soxx20 > qqq20 else
+        82 if qqq20 > 0 and soxx20 > 0 else
+        62 if qqq20 > 0 or soxx20 > 0 else
+        35
+    )
+
+    rows = []
+    for ticker in UNIVERSE:
+        try:
+            row = score_ticker(ticker, data, bench20, bench63, market_regime)
+            if row:
+                rows.append(row)
+            time.sleep(0.01)
+        except Exception as exc:
+            rows.append({
+                "ticker": ticker,
+                "category": AI_VALUE_CHAIN[ticker]["category"],
+                "signal": "Data Error",
+                "price": np.nan,
+                "base_score": 0,
+                "short": 0,
+                "swing": 0,
+                "position": 0,
+                "theme": 0,
+                "quality": 0,
+                "momentum": 0,
+                "technical": 0,
+                "flow": 0,
+                "earnings_reaction": 0,
+                "leadership": 0,
+                "risk": 0,
+                "ret20_%": np.nan,
+                "ret63_%": np.nan,
+                "rel20_%": np.nan,
+                "rel63_%": np.nan,
+                "rel_vol20": np.nan,
+                "rsi": np.nan,
+                "high_prox_%": np.nan,
+                "chart": tradingview_url(ticker),
+                "error": str(exc),
+            })
+
+    df = pd.DataFrame(rows)
+
+    if df.empty:
+        return df
+
+    df["rs_rank_20"] = df["rel20_%"].rank(pct=True) * 100
+    df["rs_rank_63"] = df["rel63_%"].rank(pct=True) * 100
+    df["leadership"] = (
+        df["rs_rank_20"] * 0.40
+        + df["rs_rank_63"] * 0.45
+        + df["flow"] * 0.15
+    ).round(1).fillna(0)
+
+    category_leadership = []
+    for _, row in df.iterrows():
+        category = row["category"]
+        same_group = df[df["category"] == category]
+        if len(same_group) <= 1:
+            category_leadership.append(70)
+        else:
+            rank_pct = same_group["base_score"].rank(pct=True).loc[row.name] * 100
+            category_leadership.append(rank_pct)
+
+    df["category_leadership"] = pd.Series(category_leadership).round(1).fillna(50)
+
+    df["institutional_score"] = (
+        df["base_score"] * 0.62
+        + df["leadership"] * 0.25
+        + df["category_leadership"] * 0.08
+        + df["flow"] * 0.05
+    ).round(1)
+
+    df = df.sort_values("institutional_score", ascending=False).reset_index(drop=True)
+    df["rank"] = df.index + 1
+
+    return df
+
+
+# =========================================================
+# Streamlit UI
+# =========================================================
+
+st.title("Alex AI Infrastructure Institutional Engine")
+st.caption(
+    "25-stock AI infrastructure dashboard · Dynamic Theme Score · "
+    "Leadership Rank · Flow · Short / Swing / Position · 5-min refresh"
+)
+
+with st.spinner("Building institutional rankings..."):
+    rankings = build_rankings()
+
+if rankings.empty:
+    st.error("No data available. Please refresh later.")
+    st.stop()
+
+top = rankings.iloc[0]
+best_short = rankings.sort_values("short", ascending=False).iloc[0]
+best_swing = rankings.sort_values("swing", ascending=False).iloc[0]
+best_position = rankings.sort_values("position", ascending=False).iloc[0]
+
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Best Overall", top["ticker"], top["signal"])
+c2.metric("Institutional Score", top["institutional_score"])
+c3.metric("Best Short", best_short["ticker"], best_short["short"])
+c4.metric("Best Swing", best_swing["ticker"], best_swing["swing"])
+
+c5, c6, c7, c8 = st.columns(4)
+c5.metric("Best Position", best_position["ticker"], best_position["position"])
+c6.metric("Market Leader", rankings.sort_values("leadership", ascending=False).iloc[0]["ticker"])
+c7.metric("Best Flow", rankings.sort_values("flow", ascending=False).iloc[0]["ticker"])
+c8.metric("Generated", datetime.now().strftime("%H:%M"))
+
+st.subheader("Institutional Ranking Table")
+
+view_cols = [
+    "rank", "ticker", "category", "signal", "institutional_score",
+    "short", "swing", "position",
+    "theme", "quality", "momentum", "technical", "flow",
+    "leadership", "category_leadership", "risk",
+    "price", "rsi", "rel_vol20", "ret20_%", "ret63_%", "high_prox_%"
+]
+
+st.dataframe(
+    rankings[view_cols],
+    use_container_width=True,
+    hide_index=True
+)
+
+st.subheader("Top 10 Setups")
+
+for _, row in rankings.head(10).iterrows():
+    with st.container(border=True):
+        st.markdown(
+            f"### #{int(row['rank'])} {row['ticker']} "
+            f"{signal_color(row['signal'])} — {row['signal']}"
+        )
+
+        a, b, c, d = st.columns(4)
+        a.metric("Institutional", row["institutional_score"])
+        b.metric("Short", row["short"])
+        c.metric("Swing", row["swing"])
+        d.metric("Position", row["position"])
+
+        e, f, g, h = st.columns(4)
+        e.metric("Theme", row["theme"])
+        f.metric("Momentum", row["momentum"])
+        g.metric("Flow", row["flow"])
+        h.metric("Leadership", row["leadership"])
+
+        st.write(
+            f"**Category:** {row['category']} · "
+            f"**Technical:** {row['technical']} · "
+            f"**Risk:** {row['risk']} · "
+            f"**RS 20D:** {row['rel20_%']}% · "
+            f"**RS 63D:** {row['rel63_%']}%"
+        )
+
+        st.link_button("Open TradingView Chart", row["chart"])
+
+
+st.subheader("Category Leaders")
+
+category_rows = []
+for category in sorted(rankings["category"].unique()):
+    group = rankings[rankings["category"] == category].sort_values(
+        "institutional_score",
+        ascending=False
+    )
+    leader = group.iloc[0]
+    category_rows.append({
+        "category": category,
+        "leader": leader["ticker"],
+        "signal": leader["signal"],
+        "score": leader["institutional_score"],
+        "momentum": leader["momentum"],
+        "flow": leader["flow"],
+        "risk": leader["risk"],
+    })
+
+category_df = pd.DataFrame(category_rows)
+st.dataframe(category_df, use_container_width=True, hide_index=True)
+
+csv = rankings.to_csv(index=False).encode("utf-8")
+st.download_button(
+    "Download CSV",
+    csv,
+    "alex_ai_infrastructure_rankings.csv",
+    "text/csv"
+)
