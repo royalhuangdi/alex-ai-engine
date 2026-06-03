@@ -355,3 +355,305 @@ def calculate_dynamic_theme_score(
     dynamic_theme = structural_score + leadership_adjustment + cyclical_penalty
 
     return clamp(dynamic_theme)
+# =========================================================
+# Ticker-Level Institutional Scoring Engine
+# =========================================================
+
+def score_ticker(ticker, data, bench20, bench63, market_regime):
+    df = get_df(data, ticker)
+
+    if len(df) < 260:
+        return {
+            "ticker": ticker,
+            "category": AI_VALUE_CHAIN[ticker]["category"],
+            "signal": "Data Error",
+            "price": np.nan,
+            "institutional_score": 0,
+            "base_score": 0,
+            "short": 0,
+            "swing": 0,
+            "position": 0,
+            "theme": 0,
+            "quality": 0,
+            "momentum": 0,
+            "technical": 0,
+            "flow": 0,
+            "leadership": 0,
+            "risk": 0,
+            "ret20_%": np.nan,
+            "ret63_%": np.nan,
+            "rel20_%": np.nan,
+            "rel63_%": np.nan,
+            "rel_vol20": np.nan,
+            "rsi": np.nan,
+            "high_prox_%": np.nan,
+            "chart": tradingview_url(ticker),
+        }
+
+    close = df["close"]
+    high = df["high"]
+    low = df["low"]
+    volume = df["volume"]
+
+    price = close.iloc[-1]
+
+    sma10 = close.rolling(10).mean().iloc[-1]
+    sma20 = close.rolling(20).mean().iloc[-1]
+    sma50 = close.rolling(50).mean().iloc[-1]
+    sma200 = close.rolling(200).mean().iloc[-1]
+
+    prev_sma20 = close.rolling(20).mean().iloc[-2]
+    prev_sma50 = close.rolling(50).mean().iloc[-2]
+
+    vol20 = volume.rolling(20).mean().iloc[-1]
+    vol50 = volume.rolling(50).mean().iloc[-1]
+
+    ret1 = pct_return(close, 2)
+    ret5 = pct_return(close, 6)
+    ret10 = pct_return(close, 11)
+    ret20 = pct_return(close, 21)
+    ret63 = pct_return(close, 64)
+    ret126 = pct_return(close, 127)
+
+    rel20 = ret20 - bench20
+    rel63 = ret63 - bench63
+
+    rel_vol20 = volume.iloc[-1] / vol20 if vol20 and not pd.isna(vol20) else 1.0
+    rel_vol50 = volume.iloc[-1] / vol50 if vol50 and not pd.isna(vol50) else 1.0
+
+    high252 = high.rolling(252).max().iloc[-1]
+    high_prox = price / high252 if high252 and not pd.isna(high252) else np.nan
+
+    atr14 = (high - low).rolling(14).mean().iloc[-1]
+    atr_pct = atr14 / price if price and not pd.isna(price) else np.nan
+
+    rsi14 = rsi(close).iloc[-1]
+
+    # -----------------------------------------------------
+    # Dynamic Theme Score
+    # -----------------------------------------------------
+    theme_score = calculate_dynamic_theme_score(
+        ticker=ticker,
+        ret63=ret63,
+        ret126=ret126,
+        rel63=rel63,
+        high_prox=high_prox,
+        market_regime=market_regime,
+    )
+
+    # -----------------------------------------------------
+    # Quality / Growth Proxy
+    # This is not accounting-grade fundamentals.
+    # It is a market-implied quality/growth proxy:
+    # long-term trend, 50/200 structure, and medium-term price strength.
+    # -----------------------------------------------------
+    quality_score = clamp(
+        35
+        + (20 if ret126 > 0.25 else 10 if ret126 > 0.05 else 0)
+        + (15 if price > sma200 else 0)
+        + (15 if sma50 > sma200 else 0)
+        + (15 if price > sma50 else 0)
+    )
+
+    # -----------------------------------------------------
+    # Momentum Score
+    # Measures whether money is currently flowing into the name.
+    # Includes absolute momentum and benchmark-relative momentum.
+    # -----------------------------------------------------
+    momentum_score = clamp(
+        (14 if ret20 > 0 else 0)
+        + (14 if ret63 > 0 else 0)
+        + (8 if ret126 > 0 else 0)
+        + (20 if rel20 > 0 else 0)
+        + (20 if rel63 > 0 else 0)
+        + (10 if price > sma20 else 0)
+        + (10 if price > sma50 else 0)
+        + (
+            14
+            if high_prox > 0.97
+            else 9
+            if high_prox > 0.92
+            else 4
+            if high_prox > 0.87
+            else 0
+        )
+    )
+
+    # -----------------------------------------------------
+    # Technical Setup Score
+    # Captures actionable chart setups:
+    # breakout, healthy pullback, trend stack, moving-average reclaim.
+    # -----------------------------------------------------
+    breakout = price > high.iloc[-2] and rel_vol20 > 1.2
+    pullback = price > sma50 and price < sma20 and 42 <= rsi14 <= 58
+    trend_stack = price > sma20 > sma50 > sma200
+    reclaim20 = price > sma20 and close.iloc[-2] < prev_sma20
+    reclaim50 = price > sma50 and close.iloc[-2] < prev_sma50
+
+    technical_score = clamp(
+        (28 if breakout else 0)
+        + (22 if pullback else 0)
+        + (25 if trend_stack else 0)
+        + (10 if reclaim20 else 0)
+        + (10 if reclaim50 else 0)
+        + (5 if rsi14 >= 50 else 0)
+    )
+
+    # -----------------------------------------------------
+    # Flow Score
+    # Relative volume + positive price action.
+    # Proxy for institutional accumulation.
+    # -----------------------------------------------------
+    flow_score = clamp(
+        (
+            35
+            if rel_vol20 > 2.0 and ret1 > 0
+            else 25
+            if rel_vol20 > 1.5 and ret1 > 0
+            else 15
+            if rel_vol20 > 1.2 and ret1 > 0
+            else 5
+        )
+        + (
+            25
+            if rel_vol50 > 1.2 and ret5 > 0
+            else 15
+            if rel_vol50 > 1.0 and ret5 > 0
+            else 5
+        )
+        + (20 if ret5 > 0 else 0)
+        + (20 if price > sma10 else 0)
+    )
+
+    # -----------------------------------------------------
+    # Earnings Reaction Proxy
+    # Without using a paid earnings API, this captures the market reaction
+    # often seen after earnings or major fundamental catalysts.
+    # -----------------------------------------------------
+    earnings_reaction_score = (
+        100
+        if ret5 > 0.08 and rel_vol20 > 1.3
+        else 85
+        if ret5 > 0.04 and rel_vol20 > 1.1
+        else 65
+        if ret5 > 0
+        else 45
+        if ret5 > -0.04
+        else 25
+    )
+
+    # -----------------------------------------------------
+    # Risk Score
+    # Higher = safer setup.
+    # Penalizes high volatility, extended RSI, and trend breakdowns.
+    # -----------------------------------------------------
+    risk_score = (
+        85
+        if atr_pct < 0.03
+        else 75
+        if atr_pct < 0.045
+        else 60
+        if atr_pct < 0.06
+        else 45
+        if atr_pct < 0.08
+        else 30
+    )
+
+    if rsi14 > 80:
+        risk_score -= 20
+    if price < sma50:
+        risk_score -= 25
+    if price < sma200:
+        risk_score -= 20
+
+    risk_score = clamp(risk_score)
+
+    # -----------------------------------------------------
+    # Time-Horizon Scores
+    # -----------------------------------------------------
+
+    short_score = clamp(
+        momentum_score * 0.28
+        + technical_score * 0.28
+        + flow_score * 0.24
+        + market_regime * 0.10
+        + risk_score * 0.10
+    )
+
+    swing_score = clamp(
+        momentum_score * 0.30
+        + technical_score * 0.22
+        + flow_score * 0.13
+        + theme_score * 0.12
+        + quality_score * 0.10
+        + market_regime * 0.07
+        + risk_score * 0.06
+    )
+
+    position_score = clamp(
+        theme_score * 0.30
+        + quality_score * 0.24
+        + momentum_score * 0.20
+        + market_regime * 0.10
+        + risk_score * 0.10
+        + technical_score * 0.06
+    )
+
+    # -----------------------------------------------------
+    # Base Score
+    # News/analyst removed.
+    # Leadership will be added later cross-sectionally in Part 3.
+    # -----------------------------------------------------
+    base_score = clamp(
+        theme_score * 0.10
+        + quality_score * 0.15
+        + momentum_score * 0.20
+        + technical_score * 0.15
+        + flow_score * 0.15
+        + earnings_reaction_score * 0.10
+        + market_regime * 0.05
+        + risk_score * 0.10
+    )
+
+    # -----------------------------------------------------
+    # Signal Logic
+    # -----------------------------------------------------
+    if price < sma50 or risk_score < 40:
+        signal = "Risk Off"
+    elif base_score >= 85 and rsi14 < 74:
+        signal = "Strong Long"
+    elif base_score >= 75 and rsi14 < 74:
+        signal = "Buy"
+    elif base_score >= 75 and rsi14 >= 74:
+        signal = "Extended"
+    elif base_score >= 65:
+        signal = "Watch"
+    else:
+        signal = "Avoid"
+
+    return {
+        "ticker": ticker,
+        "category": AI_VALUE_CHAIN[ticker]["category"],
+        "signal": signal,
+        "price": round(float(price), 2),
+        "base_score": round(base_score, 1),
+        "short": round(short_score, 1),
+        "swing": round(swing_score, 1),
+        "position": round(position_score, 1),
+        "theme": round(theme_score, 1),
+        "quality": round(quality_score, 1),
+        "momentum": round(momentum_score, 1),
+        "technical": round(technical_score, 1),
+        "flow": round(flow_score, 1),
+        "earnings_reaction": round(earnings_reaction_score, 1),
+        "leadership": 0,
+        "risk": round(risk_score, 1),
+        "ret20_%": round(ret20 * 100, 2),
+        "ret63_%": round(ret63 * 100, 2),
+        "rel20_%": round(rel20 * 100, 2),
+        "rel63_%": round(rel63 * 100, 2),
+        "rel_vol20": round(float(rel_vol20), 2),
+        "rsi": round(float(rsi14), 1),
+        "high_prox_%": round(high_prox * 100, 1),
+        "chart": tradingview_url(ticker),
+    }
