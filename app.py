@@ -1,3 +1,4 @@
+
 import time
 import warnings
 from datetime import datetime
@@ -9,225 +10,70 @@ import yfinance as yf
 
 warnings.filterwarnings("ignore")
 
-# =========================================================
-# Alex AI Infrastructure Institutional Engine
-# Final Mobile Dashboard Version
-# No news / no analyst API
-# Dynamic Theme Score + Institutional Ranking
-# =========================================================
-
 st.set_page_config(
-    page_title="Alex AI Infrastructure Engine",
+    page_title="Alex AI Infrastructure Engine V3",
     layout="wide"
 )
 
 # =========================================================
-# Universe
+# Alex AI Infrastructure Institutional Engine V3 Final
+# 31-stock mobile dashboard
+# No news / no analyst API
+# 5-minute refresh
 # =========================================================
 
-UNIVERSE = [
-    "NVDA", "AVGO", "MU", "TSM", "ASML",
-    "VRT", "ANET", "ARM", "AMD", "MRVL",
-    "AMAT", "LRCX", "KLAC", "COHR", "LITE",
-    "PLTR", "CIEN", "SNDK", "DELL", "MSFT",
-    "ORCL", "SMCI", "AAOI", "GLW", "INTC"
-]
+COMPANY_PROFILES = {
+    "NVDA": {"category": "Compute", "ai_exposure": 100, "tier": "Core Leader"},
+    "AMD":  {"category": "Compute", "ai_exposure": 87,  "tier": "Challenger"},
+    "ARM":  {"category": "Compute", "ai_exposure": 86,  "tier": "Strategic IP"},
 
+    "AVGO": {"category": "ASIC / Custom Silicon", "ai_exposure": 98, "tier": "Core Leader"},
+    "MRVL": {"category": "ASIC / Custom Silicon", "ai_exposure": 90, "tier": "Challenger"},
+
+    "MU":   {"category": "Memory / HBM", "ai_exposure": 92, "tier": "Core Leader"},
+    "SNDK": {"category": "Storage", "ai_exposure": 76, "tier": "Cyclical Satellite"},
+
+    "COHR": {"category": "Optical / Interconnect", "ai_exposure": 86, "tier": "Optical Leader"},
+    "CRDO": {"category": "Optical / Interconnect", "ai_exposure": 85, "tier": "High-Growth Interconnect"},
+    "ALAB": {"category": "Optical / Interconnect", "ai_exposure": 84, "tier": "High-Growth Interconnect"},
+    "LITE": {"category": "Optical / Interconnect", "ai_exposure": 83, "tier": "Optical Challenger"},
+    "AAOI": {"category": "Optical / Interconnect", "ai_exposure": 66, "tier": "Speculative High Beta"},
+
+    "ANET": {"category": "Networking", "ai_exposure": 94, "tier": "Core Leader"},
+    "CIEN": {"category": "Networking", "ai_exposure": 78, "tier": "Networking Satellite"},
+
+    "VRT":  {"category": "Power / Cooling", "ai_exposure": 95, "tier": "Core Leader"},
+    "ETN":  {"category": "Power / Cooling", "ai_exposure": 79, "tier": "Power Infrastructure"},
+
+    "TSM":  {"category": "Foundry", "ai_exposure": 94, "tier": "Core Leader"},
+    "INTC": {"category": "Foundry", "ai_exposure": 64, "tier": "Turnaround / Speculative"},
+
+    "ASML": {"category": "Equipment", "ai_exposure": 89, "tier": "Equipment Leader"},
+    "LRCX": {"category": "Equipment", "ai_exposure": 88, "tier": "Equipment Leader"},
+    "KLAC": {"category": "Equipment", "ai_exposure": 82, "tier": "Quality Equipment"},
+    "AMAT": {"category": "Equipment", "ai_exposure": 81, "tier": "Quality Equipment"},
+    "TER":  {"category": "Equipment", "ai_exposure": 72, "tier": "Testing / Automation"},
+
+    "SNPS": {"category": "EDA", "ai_exposure": 71, "tier": "EDA Quality"},
+    "CDNS": {"category": "EDA", "ai_exposure": 71, "tier": "EDA Quality"},
+
+    "MSFT": {"category": "Cloud / Platform", "ai_exposure": 74, "tier": "Mega-Cap Platform"},
+    "ORCL": {"category": "Cloud / Platform", "ai_exposure": 73, "tier": "AI Cloud"},
+    "PLTR": {"category": "AI Software", "ai_exposure": 72, "tier": "AI Software"},
+    "SMCI": {"category": "Servers", "ai_exposure": 77, "tier": "High-Beta Server"},
+    "DELL": {"category": "Servers", "ai_exposure": 78, "tier": "Server Infrastructure"},
+
+    "GLW":  {"category": "Fiber / Materials", "ai_exposure": 68, "tier": "Infrastructure Satellite"},
+    "NBIS": {"category": "AI Infrastructure", "ai_exposure": 62, "tier": "Speculative Infrastructure"},
+}
+
+UNIVERSE = list(COMPANY_PROFILES.keys())
 BENCHMARKS = ["QQQ", "SOXX", "SPY"]
+NYSE_TICKERS = {"TSM", "VRT", "ETN", "CIEN", "DELL", "ORCL", "GLW", "NBIS"}
 
-NYSE_TICKERS = {
-    "TSM", "VRT", "DELL", "ORCL", "CIEN", "GLW"
-}
-
-# =========================================================
-# AI Value Chain Classification
-# Manual classification, dynamic scoring later
-# =========================================================
-
-AI_VALUE_CHAIN = {
-    "NVDA": {
-        "category": "AI Compute",
-        "ai_relevance": 100,
-        "capex_sensitivity": 100,
-        "strategic_importance": 100,
-        "cyclicality_risk": 30,
-    },
-    "AVGO": {
-        "category": "ASIC / Networking",
-        "ai_relevance": 96,
-        "capex_sensitivity": 95,
-        "strategic_importance": 98,
-        "cyclicality_risk": 35,
-    },
-    "MU": {
-        "category": "HBM / Memory",
-        "ai_relevance": 94,
-        "capex_sensitivity": 92,
-        "strategic_importance": 92,
-        "cyclicality_risk": 65,
-    },
-    "TSM": {
-        "category": "Foundry",
-        "ai_relevance": 92,
-        "capex_sensitivity": 88,
-        "strategic_importance": 96,
-        "cyclicality_risk": 40,
-    },
-    "ASML": {
-        "category": "Equipment",
-        "ai_relevance": 88,
-        "capex_sensitivity": 82,
-        "strategic_importance": 96,
-        "cyclicality_risk": 45,
-    },
-    "VRT": {
-        "category": "Power / Cooling",
-        "ai_relevance": 90,
-        "capex_sensitivity": 92,
-        "strategic_importance": 88,
-        "cyclicality_risk": 45,
-    },
-    "ANET": {
-        "category": "Networking",
-        "ai_relevance": 88,
-        "capex_sensitivity": 90,
-        "strategic_importance": 86,
-        "cyclicality_risk": 42,
-    },
-    "ARM": {
-        "category": "AI Compute / IP",
-        "ai_relevance": 86,
-        "capex_sensitivity": 78,
-        "strategic_importance": 88,
-        "cyclicality_risk": 45,
-    },
-    "AMD": {
-        "category": "AI Compute",
-        "ai_relevance": 86,
-        "capex_sensitivity": 86,
-        "strategic_importance": 82,
-        "cyclicality_risk": 55,
-    },
-    "MRVL": {
-        "category": "Optical / Custom Silicon",
-        "ai_relevance": 86,
-        "capex_sensitivity": 88,
-        "strategic_importance": 84,
-        "cyclicality_risk": 55,
-    },
-    "AMAT": {
-        "category": "Equipment",
-        "ai_relevance": 84,
-        "capex_sensitivity": 82,
-        "strategic_importance": 84,
-        "cyclicality_risk": 55,
-    },
-    "LRCX": {
-        "category": "Equipment",
-        "ai_relevance": 84,
-        "capex_sensitivity": 82,
-        "strategic_importance": 84,
-        "cyclicality_risk": 55,
-    },
-    "KLAC": {
-        "category": "Equipment / Inspection",
-        "ai_relevance": 82,
-        "capex_sensitivity": 78,
-        "strategic_importance": 86,
-        "cyclicality_risk": 50,
-    },
-    "COHR": {
-        "category": "Optical",
-        "ai_relevance": 84,
-        "capex_sensitivity": 88,
-        "strategic_importance": 82,
-        "cyclicality_risk": 60,
-    },
-    "LITE": {
-        "category": "Optical",
-        "ai_relevance": 82,
-        "capex_sensitivity": 86,
-        "strategic_importance": 80,
-        "cyclicality_risk": 62,
-    },
-    "PLTR": {
-        "category": "AI Software",
-        "ai_relevance": 82,
-        "capex_sensitivity": 65,
-        "strategic_importance": 78,
-        "cyclicality_risk": 45,
-    },
-    "CIEN": {
-        "category": "Optical Networking",
-        "ai_relevance": 80,
-        "capex_sensitivity": 82,
-        "strategic_importance": 78,
-        "cyclicality_risk": 55,
-    },
-    "SNDK": {
-        "category": "Storage",
-        "ai_relevance": 80,
-        "capex_sensitivity": 78,
-        "strategic_importance": 76,
-        "cyclicality_risk": 70,
-    },
-    "DELL": {
-        "category": "AI Servers",
-        "ai_relevance": 80,
-        "capex_sensitivity": 85,
-        "strategic_importance": 76,
-        "cyclicality_risk": 55,
-    },
-    "MSFT": {
-        "category": "Cloud / AI Platform",
-        "ai_relevance": 78,
-        "capex_sensitivity": 68,
-        "strategic_importance": 84,
-        "cyclicality_risk": 25,
-    },
-    "ORCL": {
-        "category": "Cloud / AI Infrastructure",
-        "ai_relevance": 78,
-        "capex_sensitivity": 72,
-        "strategic_importance": 78,
-        "cyclicality_risk": 35,
-    },
-    "SMCI": {
-        "category": "AI Servers",
-        "ai_relevance": 78,
-        "capex_sensitivity": 88,
-        "strategic_importance": 72,
-        "cyclicality_risk": 75,
-    },
-    "AAOI": {
-        "category": "Optical High Beta",
-        "ai_relevance": 76,
-        "capex_sensitivity": 85,
-        "strategic_importance": 68,
-        "cyclicality_risk": 85,
-    },
-    "GLW": {
-        "category": "Fiber / Materials",
-        "ai_relevance": 72,
-        "capex_sensitivity": 70,
-        "strategic_importance": 72,
-        "cyclicality_risk": 45,
-    },
-    "INTC": {
-        "category": "Turnaround Semiconductor",
-        "ai_relevance": 68,
-        "capex_sensitivity": 75,
-        "strategic_importance": 78,
-        "cyclicality_risk": 80,
-    },
-}
-
-# =========================================================
-# Core Utility Functions
-# =========================================================
 
 def clamp(x, lo=0, hi=100):
-    if x is None or pd.isna(x):
+    if x is None or pd.isna(x) or np.isinf(x):
         return 50.0
     return max(lo, min(hi, float(x)))
 
@@ -236,9 +82,10 @@ def pct_return(series, days):
     if len(series) <= days:
         return np.nan
     base = series.iloc[-days]
-    if pd.isna(base) or base == 0:
+    last = series.iloc[-1]
+    if pd.isna(base) or pd.isna(last) or base == 0:
         return np.nan
-    return series.iloc[-1] / base - 1
+    return last / base - 1
 
 
 def rsi(series, period=14):
@@ -249,36 +96,66 @@ def rsi(series, period=14):
     return 100 - (100 / (1 + rs))
 
 
+def max_drawdown(series, window=126):
+    s = series.tail(window)
+    if len(s) < 5:
+        return np.nan
+    rolling_max = s.cummax()
+    drawdown = s / rolling_max - 1
+    return drawdown.min()
+
+
+def risk_adjusted_return(series, window=126):
+    s = series.tail(window).pct_change().dropna()
+    if len(s) < 20 or s.std() == 0:
+        return np.nan
+    return (s.mean() / s.std()) * np.sqrt(252)
+
+
+def trend_quality_score(series, window=126):
+    s = series.tail(window).dropna()
+    if len(s) < 40:
+        return 50.0
+
+    x = np.arange(len(s))
+    y = np.log(s.values)
+
+    try:
+        slope, intercept = np.polyfit(x, y, 1)
+        fitted = slope * x + intercept
+        residual = y - fitted
+        denom = np.sum((y - y.mean()) ** 2)
+        r2 = 0 if denom == 0 else 1 - (np.sum(residual ** 2) / denom)
+        annualized_slope = slope * 252
+        score = 50 + annualized_slope * 25 + r2 * 35
+        return clamp(score)
+    except Exception:
+        return 50.0
+
+
 def tradingview_url(ticker):
     exchange = "NYSE" if ticker in NYSE_TICKERS else "NASDAQ"
     return f"https://www.tradingview.com/chart/?symbol={exchange}:{ticker}"
 
 
-def signal_color(signal):
-    if signal == "Strong Long":
-        return "🟢"
-    if signal == "Buy":
-        return "🟩"
-    if signal == "Watch":
-        return "🟨"
-    if signal == "Extended":
-        return "🟧"
-    if signal == "Risk Off":
-        return "🔴"
-    return "⚪"
+def signal_icon(signal):
+    return {
+        "Strong Long": "🟢",
+        "Buy": "🟩",
+        "Watch": "🟨",
+        "Extended": "🟧",
+        "Risk Off": "🔴",
+        "Avoid": "⚪",
+        "Data Error": "⚫",
+    }.get(signal, "⚪")
 
-
-# =========================================================
-# Data Download
-# 5-minute cache for mobile-friendly refresh
-# =========================================================
 
 @st.cache_data(ttl=300, show_spinner=False)
 def download_market_data():
     tickers = UNIVERSE + BENCHMARKS
     data = yf.download(
         tickers,
-        period="18mo",
+        period="24mo",
         interval="1d",
         auto_adjust=True,
         progress=False,
@@ -290,6 +167,8 @@ def download_market_data():
 
 def get_df(data, ticker):
     if isinstance(data.columns, pd.MultiIndex):
+        if ticker not in data.columns.get_level_values(0):
+            return pd.DataFrame()
         df = data[ticker].copy()
     else:
         df = data.copy()
@@ -298,95 +177,48 @@ def get_df(data, ticker):
     return df.dropna()
 
 
-# =========================================================
-# Dynamic Theme Score
-# Key upgrade:
-# Theme is no longer purely static.
-# It adjusts based on price leadership, relative strength,
-# AI value-chain importance, and cyclicality penalty.
-# =========================================================
+def calculate_market_regime(data):
+    qqq = get_df(data, "QQQ")["close"]
+    soxx = get_df(data, "SOXX")["close"]
+    spy = get_df(data, "SPY")["close"]
 
-def calculate_dynamic_theme_score(
-    ticker,
-    ret63,
-    ret126,
-    rel63,
-    high_prox,
-    market_regime
-):
-    profile = AI_VALUE_CHAIN[ticker]
+    qqq21 = pct_return(qqq, 21)
+    soxx21 = pct_return(soxx, 21)
+    spy21 = pct_return(spy, 21)
+    qqq63 = pct_return(qqq, 64)
+    soxx63 = pct_return(soxx, 64)
 
-    ai_relevance = profile["ai_relevance"]
-    capex_sensitivity = profile["capex_sensitivity"]
-    strategic_importance = profile["strategic_importance"]
-    cyclicality_risk = profile["cyclicality_risk"]
-
-    structural_score = (
-        ai_relevance * 0.40
-        + capex_sensitivity * 0.25
-        + strategic_importance * 0.25
-        + (100 - cyclicality_risk) * 0.10
+    regime = (
+        100 if qqq21 > 0 and soxx21 > 0 and soxx21 > qqq21 else
+        85 if qqq21 > 0 and soxx21 > 0 else
+        65 if qqq21 > 0 or soxx21 > 0 else
+        40 if spy21 > 0 else
+        25
     )
 
-    leadership_adjustment = 0
+    bench_returns = {
+        "bench21": np.nanmean([qqq21, soxx21]),
+        "bench63": np.nanmean([qqq63, soxx63]),
+    }
+    return regime, bench_returns
 
-    if ret63 > 0:
-        leadership_adjustment += 4
-    if ret126 > 0:
-        leadership_adjustment += 4
-    if rel63 > 0:
-        leadership_adjustment += 6
-    if high_prox > 0.92:
-        leadership_adjustment += 4
-    if high_prox > 0.97:
-        leadership_adjustment += 4
 
-    if market_regime >= 80:
-        leadership_adjustment += 3
-    elif market_regime < 50:
-        leadership_adjustment -= 5
-
-    cyclical_penalty = 0
-    if cyclicality_risk >= 75 and ret63 < 0:
-        cyclical_penalty -= 8
-    elif cyclicality_risk >= 65 and ret63 < 0:
-        cyclical_penalty -= 5
-
-    dynamic_theme = structural_score + leadership_adjustment + cyclical_penalty
-
-    return clamp(dynamic_theme)
-# =========================================================
-# Ticker-Level Institutional Scoring Engine
-# =========================================================
-
-def score_ticker(ticker, data, bench20, bench63, market_regime):
+def score_ticker(ticker, data, market_regime, bench_returns):
+    profile = COMPANY_PROFILES[ticker]
     df = get_df(data, ticker)
 
-    if len(df) < 260:
+    if df.empty or len(df) < 260:
         return {
             "ticker": ticker,
-            "category": AI_VALUE_CHAIN[ticker]["category"],
+            "category": profile["category"],
+            "tier": profile["tier"],
             "signal": "Data Error",
-            "price": np.nan,
+            "ai_exposure": profile["ai_exposure"],
             "institutional_score": 0,
-            "base_score": 0,
             "short": 0,
             "swing": 0,
             "position": 0,
-            "theme": 0,
-            "quality": 0,
-            "momentum": 0,
-            "technical": 0,
-            "flow": 0,
-            "leadership": 0,
-            "risk": 0,
-            "ret20_%": np.nan,
-            "ret63_%": np.nan,
-            "rel20_%": np.nan,
-            "rel63_%": np.nan,
-            "rel_vol20": np.nan,
-            "rsi": np.nan,
-            "high_prox_%": np.nan,
+            "price": np.nan,
             "chart": tradingview_url(ticker),
         }
 
@@ -410,87 +242,79 @@ def score_ticker(ticker, data, bench20, bench63, market_regime):
 
     ret1 = pct_return(close, 2)
     ret5 = pct_return(close, 6)
-    ret10 = pct_return(close, 11)
-    ret20 = pct_return(close, 21)
+    ret21 = pct_return(close, 22)
     ret63 = pct_return(close, 64)
     ret126 = pct_return(close, 127)
+    ret252 = pct_return(close, 253)
 
-    rel20 = ret20 - bench20
-    rel63 = ret63 - bench63
-
-    rel_vol20 = volume.iloc[-1] / vol20 if vol20 and not pd.isna(vol20) else 1.0
-    rel_vol50 = volume.iloc[-1] / vol50 if vol50 and not pd.isna(vol50) else 1.0
+    rel21 = ret21 - bench_returns["bench21"]
+    rel63 = ret63 - bench_returns["bench63"]
 
     high252 = high.rolling(252).max().iloc[-1]
     high_prox = price / high252 if high252 and not pd.isna(high252) else np.nan
 
-    atr14 = (high - low).rolling(14).mean().iloc[-1]
-    atr_pct = atr14 / price if price and not pd.isna(price) else np.nan
+    rel_vol20 = volume.iloc[-1] / vol20 if vol20 and not pd.isna(vol20) else 1.0
+    rel_vol50 = volume.iloc[-1] / vol50 if vol50 and not pd.isna(vol50) else 1.0
 
     rsi14 = rsi(close).iloc[-1]
+    atr_pct = (high - low).rolling(14).mean().iloc[-1] / price
 
-    # -----------------------------------------------------
-    # Dynamic Theme Score
-    # -----------------------------------------------------
-    theme_score = calculate_dynamic_theme_score(
-        ticker=ticker,
-        ret63=ret63,
-        ret126=ret126,
-        rel63=rel63,
-        high_prox=high_prox,
-        market_regime=market_regime,
+    ai_exposure_score = profile["ai_exposure"]
+
+    rs_raw = clamp(
+        (18 if ret21 > 0 else 0)
+        + (20 if ret63 > 0 else 0)
+        + (18 if ret126 > 0 else 0)
+        + (14 if ret252 > 0 else 0)
+        + (15 if rel21 > 0 else 0)
+        + (15 if rel63 > 0 else 0)
     )
 
-    # -----------------------------------------------------
-    # Quality / Growth Proxy
-    # This is not accounting-grade fundamentals.
-    # It is a market-implied quality/growth proxy:
-    # long-term trend, 50/200 structure, and medium-term price strength.
-    # -----------------------------------------------------
-    quality_score = clamp(
+    flow_score = clamp(
+        (35 if rel_vol20 > 2.0 and ret1 > 0 else
+         27 if rel_vol20 > 1.5 and ret1 > 0 else
+         18 if rel_vol20 > 1.2 and ret1 > 0 else 6)
+        + (25 if rel_vol50 > 1.2 and ret5 > 0 else
+           15 if rel_vol50 > 1.0 and ret5 > 0 else 5)
+        + (20 if ret5 > 0 else 0)
+        + (20 if price > sma10 else 0)
+    )
+
+    earnings_power_score = (
+        100 if ret5 > 0.08 and rel_vol20 > 1.30 else
+        88 if ret5 > 0.04 and rel_vol20 > 1.10 else
+        70 if ret5 > 0 else
+        45 if ret5 > -0.04 else
+        25
+    )
+
+    trend_quality = trend_quality_score(close, 126)
+
+    dd = max_drawdown(close, 126)
+    drawdown_quality = (
+        90 if dd > -0.08 else
+        78 if dd > -0.13 else
+        62 if dd > -0.20 else
+        45 if dd > -0.30 else
+        28
+    )
+
+    sharpe_like = risk_adjusted_return(close, 126)
+    risk_adjusted = (
+        95 if sharpe_like > 2.0 else
+        82 if sharpe_like > 1.2 else
+        68 if sharpe_like > 0.6 else
+        50 if sharpe_like > 0 else
         35
-        + (20 if ret126 > 0.25 else 10 if ret126 > 0.05 else 0)
-        + (15 if price > sma200 else 0)
-        + (15 if sma50 > sma200 else 0)
-        + (15 if price > sma50 else 0)
     )
 
-    # -----------------------------------------------------
-    # Momentum Score
-    # Measures whether money is currently flowing into the name.
-    # Includes absolute momentum and benchmark-relative momentum.
-    # -----------------------------------------------------
-    momentum_score = clamp(
-        (14 if ret20 > 0 else 0)
-        + (14 if ret63 > 0 else 0)
-        + (8 if ret126 > 0 else 0)
-        + (20 if rel20 > 0 else 0)
-        + (20 if rel63 > 0 else 0)
-        + (10 if price > sma20 else 0)
-        + (10 if price > sma50 else 0)
-        + (
-            14
-            if high_prox > 0.97
-            else 9
-            if high_prox > 0.92
-            else 4
-            if high_prox > 0.87
-            else 0
-        )
-    )
-
-    # -----------------------------------------------------
-    # Technical Setup Score
-    # Captures actionable chart setups:
-    # breakout, healthy pullback, trend stack, moving-average reclaim.
-    # -----------------------------------------------------
     breakout = price > high.iloc[-2] and rel_vol20 > 1.2
     pullback = price > sma50 and price < sma20 and 42 <= rsi14 <= 58
     trend_stack = price > sma20 > sma50 > sma200
     reclaim20 = price > sma20 and close.iloc[-2] < prev_sma20
     reclaim50 = price > sma50 and close.iloc[-2] < prev_sma50
 
-    technical_score = clamp(
+    technical_setup = clamp(
         (28 if breakout else 0)
         + (22 if pullback else 0)
         + (25 if trend_stack else 0)
@@ -499,132 +323,69 @@ def score_ticker(ticker, data, bench20, bench63, market_regime):
         + (5 if rsi14 >= 50 else 0)
     )
 
-    # -----------------------------------------------------
-    # Flow Score
-    # Relative volume + positive price action.
-    # Proxy for institutional accumulation.
-    # -----------------------------------------------------
-    flow_score = clamp(
-        (
-            35
-            if rel_vol20 > 2.0 and ret1 > 0
-            else 25
-            if rel_vol20 > 1.5 and ret1 > 0
-            else 15
-            if rel_vol20 > 1.2 and ret1 > 0
-            else 5
-        )
-        + (
-            25
-            if rel_vol50 > 1.2 and ret5 > 0
-            else 15
-            if rel_vol50 > 1.0 and ret5 > 0
-            else 5
-        )
-        + (20 if ret5 > 0 else 0)
-        + (20 if price > sma10 else 0)
-    )
-
-    # -----------------------------------------------------
-    # Earnings Reaction Proxy
-    # Without using a paid earnings API, this captures the market reaction
-    # often seen after earnings or major fundamental catalysts.
-    # -----------------------------------------------------
-    earnings_reaction_score = (
-        100
-        if ret5 > 0.08 and rel_vol20 > 1.3
-        else 85
-        if ret5 > 0.04 and rel_vol20 > 1.1
-        else 65
-        if ret5 > 0
-        else 45
-        if ret5 > -0.04
-        else 25
-    )
-
-    # -----------------------------------------------------
-    # Risk Score
-    # Higher = safer setup.
-    # Penalizes high volatility, extended RSI, and trend breakdowns.
-    # -----------------------------------------------------
     risk_score = (
-        85
-        if atr_pct < 0.03
-        else 75
-        if atr_pct < 0.045
-        else 60
-        if atr_pct < 0.06
-        else 45
-        if atr_pct < 0.08
-        else 30
+        88 if atr_pct < 0.03 else
+        76 if atr_pct < 0.045 else
+        62 if atr_pct < 0.06 else
+        45 if atr_pct < 0.08 else
+        30
     )
-
     if rsi14 > 80:
-        risk_score -= 20
+        risk_score -= 15
     if price < sma50:
-        risk_score -= 25
+        risk_score -= 22
     if price < sma200:
-        risk_score -= 20
-
+        risk_score -= 18
     risk_score = clamp(risk_score)
 
-    # -----------------------------------------------------
-    # Time-Horizon Scores
-    # -----------------------------------------------------
-
     short_score = clamp(
-        momentum_score * 0.28
-        + technical_score * 0.28
-        + flow_score * 0.24
-        + market_regime * 0.10
+        rs_raw * 0.25
+        + technical_setup * 0.28
+        + flow_score * 0.27
+        + earnings_power_score * 0.10
         + risk_score * 0.10
     )
 
     swing_score = clamp(
-        momentum_score * 0.30
-        + technical_score * 0.22
-        + flow_score * 0.13
-        + theme_score * 0.12
-        + quality_score * 0.10
-        + market_regime * 0.07
-        + risk_score * 0.06
+        rs_raw * 0.32
+        + flow_score * 0.18
+        + trend_quality * 0.15
+        + technical_setup * 0.15
+        + ai_exposure_score * 0.10
+        + market_regime * 0.05
+        + risk_score * 0.05
     )
 
     position_score = clamp(
-        theme_score * 0.30
-        + quality_score * 0.24
-        + momentum_score * 0.20
+        ai_exposure_score * 0.25
+        + rs_raw * 0.25
+        + trend_quality * 0.15
+        + drawdown_quality * 0.10
+        + risk_adjusted * 0.10
         + market_regime * 0.10
-        + risk_score * 0.10
-        + technical_score * 0.06
+        + risk_score * 0.05
     )
 
-    # -----------------------------------------------------
-    # Base Score
-    # News/analyst removed.
-    # Leadership will be added later cross-sectionally in Part 3.
-    # -----------------------------------------------------
     base_score = clamp(
-        theme_score * 0.10
-        + quality_score * 0.15
-        + momentum_score * 0.20
-        + technical_score * 0.15
+        ai_exposure_score * 0.15
+        + rs_raw * 0.20
         + flow_score * 0.15
-        + earnings_reaction_score * 0.10
+        + earnings_power_score * 0.10
+        + trend_quality * 0.10
+        + drawdown_quality * 0.05
+        + risk_adjusted * 0.05
         + market_regime * 0.05
-        + risk_score * 0.10
+        + technical_setup * 0.10
+        + risk_score * 0.05
     )
 
-    # -----------------------------------------------------
-    # Signal Logic
-    # -----------------------------------------------------
-    if price < sma50 or risk_score < 40:
+    if price < sma50 or risk_score < 38:
         signal = "Risk Off"
-    elif base_score >= 85 and rsi14 < 74:
+    elif base_score >= 85 and rsi14 < 76:
         signal = "Strong Long"
-    elif base_score >= 75 and rsi14 < 74:
+    elif base_score >= 76 and rsi14 < 76:
         signal = "Buy"
-    elif base_score >= 75 and rsi14 >= 74:
+    elif base_score >= 76 and rsi14 >= 76:
         signal = "Extended"
     elif base_score >= 65:
         signal = "Watch"
@@ -633,151 +394,129 @@ def score_ticker(ticker, data, bench20, bench63, market_regime):
 
     return {
         "ticker": ticker,
-        "category": AI_VALUE_CHAIN[ticker]["category"],
+        "category": profile["category"],
+        "tier": profile["tier"],
         "signal": signal,
         "price": round(float(price), 2),
+        "ai_exposure": round(ai_exposure_score, 1),
+        "rs_raw": round(rs_raw, 1),
+        "flow": round(flow_score, 1),
+        "earnings_power": round(earnings_power_score, 1),
+        "trend_quality": round(trend_quality, 1),
+        "drawdown_quality": round(drawdown_quality, 1),
+        "risk_adjusted": round(risk_adjusted, 1),
+        "technical": round(technical_setup, 1),
+        "risk": round(risk_score, 1),
         "base_score": round(base_score, 1),
         "short": round(short_score, 1),
         "swing": round(swing_score, 1),
         "position": round(position_score, 1),
-        "theme": round(theme_score, 1),
-        "quality": round(quality_score, 1),
-        "momentum": round(momentum_score, 1),
-        "technical": round(technical_score, 1),
-        "flow": round(flow_score, 1),
-        "earnings_reaction": round(earnings_reaction_score, 1),
-        "leadership": 0,
-        "risk": round(risk_score, 1),
-        "ret20_%": round(ret20 * 100, 2),
+        "ret21_%": round(ret21 * 100, 2),
         "ret63_%": round(ret63 * 100, 2),
-        "rel20_%": round(rel20 * 100, 2),
+        "ret126_%": round(ret126 * 100, 2),
+        "ret252_%": round(ret252 * 100, 2),
+        "rel21_%": round(rel21 * 100, 2),
         "rel63_%": round(rel63 * 100, 2),
         "rel_vol20": round(float(rel_vol20), 2),
         "rsi": round(float(rsi14), 1),
-        "high_prox_%": round(high_prox * 100, 1),
+        "max_dd_6m_%": round(float(dd * 100), 2) if not pd.isna(dd) else np.nan,
+        "high_prox_%": round(float(high_prox * 100), 1) if not pd.isna(high_prox) else np.nan,
         "chart": tradingview_url(ticker),
     }
-# =========================================================
-# Ranking Engine + Dashboard
-# =========================================================
+
 
 @st.cache_data(ttl=300, show_spinner=False)
 def build_rankings():
     data = download_market_data()
-
-    qqq = get_df(data, "QQQ")["close"]
-    soxx = get_df(data, "SOXX")["close"]
-
-    qqq20 = pct_return(qqq, 21)
-    soxx20 = pct_return(soxx, 21)
-    qqq63 = pct_return(qqq, 64)
-    soxx63 = pct_return(soxx, 64)
-
-    bench20 = np.nanmean([qqq20, soxx20])
-    bench63 = np.nanmean([qqq63, soxx63])
-
-    market_regime = (
-        100 if qqq20 > 0 and soxx20 > 0 and soxx20 > qqq20 else
-        82 if qqq20 > 0 and soxx20 > 0 else
-        62 if qqq20 > 0 or soxx20 > 0 else
-        35
-    )
+    market_regime, bench_returns = calculate_market_regime(data)
 
     rows = []
     for ticker in UNIVERSE:
         try:
-            row = score_ticker(ticker, data, bench20, bench63, market_regime)
-            if row:
-                rows.append(row)
+            rows.append(score_ticker(ticker, data, market_regime, bench_returns))
             time.sleep(0.01)
         except Exception as exc:
+            profile = COMPANY_PROFILES[ticker]
             rows.append({
                 "ticker": ticker,
-                "category": AI_VALUE_CHAIN[ticker]["category"],
+                "category": profile["category"],
+                "tier": profile["tier"],
                 "signal": "Data Error",
-                "price": np.nan,
-                "base_score": 0,
-                "short": 0,
-                "swing": 0,
-                "position": 0,
-                "theme": 0,
-                "quality": 0,
-                "momentum": 0,
-                "technical": 0,
-                "flow": 0,
-                "earnings_reaction": 0,
-                "leadership": 0,
-                "risk": 0,
-                "ret20_%": np.nan,
-                "ret63_%": np.nan,
-                "rel20_%": np.nan,
-                "rel63_%": np.nan,
-                "rel_vol20": np.nan,
-                "rsi": np.nan,
-                "high_prox_%": np.nan,
+                "institutional_score": 0,
                 "chart": tradingview_url(ticker),
                 "error": str(exc),
             })
 
     df = pd.DataFrame(rows)
 
-    if df.empty:
-        return df
+    for col in ["ret21_%", "ret63_%", "ret126_%", "ret252_%", "rel21_%", "rel63_%"]:
+        if col not in df.columns:
+            df[col] = np.nan
 
-    df["rs_rank_20"] = df["rel20_%"].rank(pct=True) * 100
-    df["rs_rank_63"] = df["rel63_%"].rank(pct=True) * 100
-    df["leadership"] = (
-        df["rs_rank_20"] * 0.40
-        + df["rs_rank_63"] * 0.45
-        + df["flow"] * 0.15
+    df["rs_pct_21"] = df["ret21_%"].rank(pct=True) * 100
+    df["rs_pct_63"] = df["ret63_%"].rank(pct=True) * 100
+    df["rs_pct_126"] = df["ret126_%"].rank(pct=True) * 100
+    df["rs_pct_252"] = df["ret252_%"].rank(pct=True) * 100
+    df["relative_rs_pct"] = (
+        df["rel21_%"].rank(pct=True) * 0.45
+        + df["rel63_%"].rank(pct=True) * 0.55
+    ) * 100
+
+    df["rs_percentile"] = (
+        df["rs_pct_21"] * 0.25
+        + df["rs_pct_63"] * 0.30
+        + df["rs_pct_126"] * 0.25
+        + df["rs_pct_252"] * 0.10
+        + df["relative_rs_pct"] * 0.10
     ).round(1).fillna(0)
 
-    category_leadership = []
-    for _, row in df.iterrows():
-        category = row["category"]
-        same_group = df[df["category"] == category]
-        if len(same_group) <= 1:
-            category_leadership.append(70)
-        else:
-            rank_pct = same_group["base_score"].rank(pct=True).loc[row.name] * 100
-            category_leadership.append(rank_pct)
+    df["category_rank"] = df.groupby("category")["base_score"].rank(ascending=False, method="first")
+    df["category_count"] = df.groupby("category")["ticker"].transform("count")
+    df["category_leadership"] = (
+        (1 - (df["category_rank"] - 1) / df["category_count"].replace(0, np.nan)) * 100
+    ).round(1).fillna(70)
 
-    df["category_leadership"] = pd.Series(category_leadership).round(1).fillna(50)
+    df["leader_status"] = np.where(
+        df["category_rank"] == 1,
+        "Leader",
+        np.where(df["category_rank"] <= 2, "Follower", "Lagging")
+    )
 
     df["institutional_score"] = (
-        df["base_score"] * 0.62
-        + df["leadership"] * 0.25
-        + df["category_leadership"] * 0.08
-        + df["flow"] * 0.05
+        df["ai_exposure"] * 0.15
+        + df["rs_percentile"] * 0.25
+        + df["flow"] * 0.15
+        + df["earnings_power"] * 0.10
+        + df["trend_quality"] * 0.10
+        + df["category_leadership"] * 0.10
+        + df["drawdown_quality"] * 0.05
+        + df["risk_adjusted"] * 0.05
+        + df["risk"] * 0.05
     ).round(1)
 
     df = df.sort_values("institutional_score", ascending=False).reset_index(drop=True)
     df["rank"] = df.index + 1
 
-    return df
+    return df, market_regime
 
 
-# =========================================================
-# Streamlit UI
-# =========================================================
-
-st.title("Alex AI Infrastructure Institutional Engine")
+st.title("Alex AI Infrastructure Institutional Engine V3")
 st.caption(
-    "25-stock AI infrastructure dashboard · Dynamic Theme Score · "
-    "Leadership Rank · Flow · Short / Swing / Position · 5-min refresh"
+    "31-stock AI infrastructure dashboard · AI Exposure + RS Percentile + Flow + Leadership · 5-minute refresh"
 )
 
-with st.spinner("Building institutional rankings..."):
-    rankings = build_rankings()
+with st.spinner("Building V3 institutional rankings..."):
+    rankings, market_regime = build_rankings()
 
 if rankings.empty:
-    st.error("No data available. Please refresh later.")
+    st.error("No ranking data available. Refresh later.")
     st.stop()
 
 top = rankings.iloc[0]
 best_short = rankings.sort_values("short", ascending=False).iloc[0]
 best_swing = rankings.sort_values("swing", ascending=False).iloc[0]
 best_position = rankings.sort_values("position", ascending=False).iloc[0]
+best_flow = rankings.sort_values("flow", ascending=False).iloc[0]
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Best Overall", top["ticker"], top["signal"])
@@ -787,33 +526,55 @@ c4.metric("Best Swing", best_swing["ticker"], best_swing["swing"])
 
 c5, c6, c7, c8 = st.columns(4)
 c5.metric("Best Position", best_position["ticker"], best_position["position"])
-c6.metric("Market Leader", rankings.sort_values("leadership", ascending=False).iloc[0]["ticker"])
-c7.metric("Best Flow", rankings.sort_values("flow", ascending=False).iloc[0]["ticker"])
+c6.metric("Best Flow", best_flow["ticker"], best_flow["flow"])
+c7.metric("Market Regime", round(market_regime, 1))
 c8.metric("Generated", datetime.now().strftime("%H:%M"))
+
+st.subheader("Key Value-Chain Leaders")
+
+key_categories = [
+    "Compute",
+    "ASIC / Custom Silicon",
+    "Memory / HBM",
+    "Optical / Interconnect",
+    "Networking",
+    "Power / Cooling",
+    "Foundry",
+    "Equipment",
+]
+
+leader_cards = []
+for cat in key_categories:
+    group = rankings[rankings["category"] == cat]
+    if not group.empty:
+        leader = group.sort_values("institutional_score", ascending=False).iloc[0]
+        leader_cards.append((cat, leader))
+
+cols = st.columns(4)
+for i, (cat, leader) in enumerate(leader_cards):
+    with cols[i % 4]:
+        st.metric(cat, leader["ticker"], leader["signal"])
 
 st.subheader("Institutional Ranking Table")
 
 view_cols = [
-    "rank", "ticker", "category", "signal", "institutional_score",
+    "rank", "ticker", "category", "tier", "leader_status", "signal",
+    "institutional_score", "ai_exposure", "rs_percentile",
+    "flow", "earnings_power", "trend_quality",
+    "category_leadership", "risk_adjusted", "risk",
     "short", "swing", "position",
-    "theme", "quality", "momentum", "technical", "flow",
-    "leadership", "category_leadership", "risk",
-    "price", "rsi", "rel_vol20", "ret20_%", "ret63_%", "high_prox_%"
+    "price", "rsi", "rel_vol20", "ret21_%", "ret63_%", "ret126_%", "max_dd_6m_%"
 ]
 
-st.dataframe(
-    rankings[view_cols],
-    use_container_width=True,
-    hide_index=True
-)
+safe_view_cols = [c for c in view_cols if c in rankings.columns]
+st.dataframe(rankings[safe_view_cols], use_container_width=True, hide_index=True)
 
 st.subheader("Top 10 Setups")
 
 for _, row in rankings.head(10).iterrows():
     with st.container(border=True):
         st.markdown(
-            f"### #{int(row['rank'])} {row['ticker']} "
-            f"{signal_color(row['signal'])} — {row['signal']}"
+            f"### #{int(row['rank'])} {row['ticker']} {signal_icon(row['signal'])} — {row['signal']}"
         )
 
         a, b, c, d = st.columns(4)
@@ -823,48 +584,44 @@ for _, row in rankings.head(10).iterrows():
         d.metric("Position", row["position"])
 
         e, f, g, h = st.columns(4)
-        e.metric("Theme", row["theme"])
-        f.metric("Momentum", row["momentum"])
+        e.metric("AI Exposure", row["ai_exposure"])
+        f.metric("RS Percentile", row["rs_percentile"])
         g.metric("Flow", row["flow"])
-        h.metric("Leadership", row["leadership"])
+        h.metric("Leadership", row["leader_status"])
 
         st.write(
             f"**Category:** {row['category']} · "
-            f"**Technical:** {row['technical']} · "
-            f"**Risk:** {row['risk']} · "
-            f"**RS 20D:** {row['rel20_%']}% · "
-            f"**RS 63D:** {row['rel63_%']}%"
+            f"**Trend Quality:** {row['trend_quality']} · "
+            f"**Risk Adj:** {row['risk_adjusted']} · "
+            f"**Drawdown Quality:** {row['drawdown_quality']} · "
+            f"**Risk:** {row['risk']}"
         )
 
         st.link_button("Open TradingView Chart", row["chart"])
 
+st.subheader("All Category Leaders")
 
-st.subheader("Category Leaders")
-
-category_rows = []
-for category in sorted(rankings["category"].unique()):
-    group = rankings[rankings["category"] == category].sort_values(
-        "institutional_score",
-        ascending=False
-    )
+category_summary = []
+for cat in sorted(rankings["category"].dropna().unique()):
+    group = rankings[rankings["category"] == cat].sort_values("institutional_score", ascending=False)
     leader = group.iloc[0]
-    category_rows.append({
-        "category": category,
+    category_summary.append({
+        "category": cat,
         "leader": leader["ticker"],
         "signal": leader["signal"],
         "score": leader["institutional_score"],
-        "momentum": leader["momentum"],
+        "rs_percentile": leader["rs_percentile"],
         "flow": leader["flow"],
         "risk": leader["risk"],
     })
 
-category_df = pd.DataFrame(category_rows)
+category_df = pd.DataFrame(category_summary)
 st.dataframe(category_df, use_container_width=True, hide_index=True)
 
 csv = rankings.to_csv(index=False).encode("utf-8")
 st.download_button(
     "Download CSV",
     csv,
-    "alex_ai_infrastructure_rankings.csv",
+    "alex_ai_infrastructure_v3_rankings.csv",
     "text/csv"
 )
